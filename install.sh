@@ -37,11 +37,6 @@ for i in {1..8}; do
   wp core install --path=/var/www/$domain --url="$domain.wg" --title="$domain Site" --admin_user="$db_user" --admin_password="$db_pass" --admin_email="admin@$domain.wg" --allow-root
 done
 
-# DNS and Network Configuration
-echo "nameserver 1.1.1.1
-nameserver 1.0.0.1" | sudo tee /etc/resolv.conf
-sudo systemctl restart networking
-
 # VPN Management Password
 vpn_pass=$(openssl rand -base64 32)
 echo "VPN Management Password: $vpn_pass" >> /root/vpn_password.txt
