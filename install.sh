@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# Usunięcie Pi-hole, Instalacja zależności
-pihole uninstall --unattended
 sudo apt install -y nginx wireguard php-fpm mysql-server phpmyadmin
 
 # Konfiguracja WireGuard
