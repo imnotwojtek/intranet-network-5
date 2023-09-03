@@ -2,7 +2,7 @@
 
 # Install dependencies
 sudo apt update
-sudo apt install -y nginx wireguard php8.2-fpm mysql-server phpmyadmin wp-cli
+sudo apt install -y nginx wireguard php8.2-fpm mysql-server phpmyadmin wp-cli postfix dovecot-core dovecot-imapd roundcube
 
 # Create directories
 sudo mkdir -p /etc/nginx/ssl
@@ -23,6 +23,19 @@ sudo systemctl enable wg-quick@wg0 && sudo systemctl start wg-quick@wg0
 sudo openssl ecparam -genkey -name secp384r1 | sudo tee /etc/nginx/ssl/nginx.key
 sudo openssl req -x509 -nodes -days 1825 -key /etc/nginx/ssl/nginx.key -out /etc/nginx/ssl/nginx.crt -subj "/CN=wgx"
 
+# Postfix Configuration
+echo "postfix postfix/mailname string mail.wg" | sudo debconf-set-selections
+echo "postfix postfix/main_mailer_type string 'Internet Site'" | sudo debconf-set-selections
+sudo apt-get install -y postfix
+
+# Dovecot Configuration
+sudo apt-get install -y dovecot-imapd dovecot-pop3d
+# (Add your Dovecot configuration here)
+
+# Roundcube Configuration
+sudo apt-get install -y roundcube roundcube-plugins
+# (Add your Roundcube configuration here)
+
 # NGINX, MySQL, and WordPress Configuration
 for i in {1..8}; do
   domain=$(shuf -zer -n6 {a..z}{A..Z}{0..9})
@@ -37,6 +50,9 @@ for i in {1..8}; do
   wp core install --path=/var/www/$domain --url="$domain.wg" --title="$domain Site" --admin_user="$db_user" --admin_password="$db_pass" --admin_email="admin@$domain.wg" --allow-root
 done
 
+# Add mail.wg to hosts
+echo "127.0.0.1 mail.wg" >> /etc/hosts
+
 # VPN Management Password
 vpn_pass=$(openssl rand -base64 32)
 echo "VPN Management Password: $vpn_pass" >> /root/vpn_password.txt
@@ -46,5 +62,8 @@ for i in {1..10}; do
   client_id="CLIENT-$(shuf -zer -n6 {A..Z}{a..z}{0..9})"
   echo "Client ID: $client_id" >> /root/wg_clients.txt
 done
+
+# Local Email Server Configuration
+# (You can add your Postfix, Dovecot, and Roundcube configuration here)
 
 echo "Configuration complete. Your system is now ready for use."
