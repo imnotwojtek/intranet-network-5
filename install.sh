@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Instalacja zależności
 sudo apt install -y nginx wireguard php-fpm mysql-server phpmyadmin
 
 # Konfiguracja WireGuard
@@ -40,8 +41,10 @@ done
 sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH 'mysql_native_password' BY 'root'; FLUSH PRIVILEGES;"
 sudo mysql -e "CREATE DATABASE wordpress; GRANT ALL PRIVILEGES ON wordpress.* TO 'wordpress'@'localhost' IDENTIFIED BY 'password'; FLUSH PRIVILEGES;"
 
-# Usunięcie i odświeżenie cache
-sudo apt clean && sudo systemd-resolve --flush-caches
+# Reset DNS i przeładowanie karty sieciowej
+echo "nameserver 1.1.1.1
+nameserver 1.0.0.1" | sudo tee /etc/resolv.conf
+sudo systemctl restart networking
 
 # Losowe hasło do zarządzania VPN
 password=$(openssl rand -base64 32)
