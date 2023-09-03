@@ -1,69 +1,23 @@
 #!/bin/bash
 
-# Install dependencies
-sudo apt update
-sudo apt install -y nginx wireguard php8.2-fpm mysql-server phpmyadmin wp-cli postfix dovecot-core dovecot-imapd roundcube
+# Create Docker Compose file from base64 encoded string
+echo "dmVyc2lvbjogJzMnCnNlcnZpY2VzOgogIHdpcmVndWFyZDoKICAgIGltYWdlOiBsaW51eHNlcnZlci93aXJlZ3VhcmQKICAgIGNvbnRhaW5lcl9uYW1lOiB3aXJlZ3VhcmQKICAgIGNhcF9hZGQ6CiAgICAgIC0gTkVUX0FETUlOCiAgICAgIC0gU1lTX01PRFVMRQogICAgZW52aXJvbm1lbnQ6CiAgICAgIC0gUFVJRD0xMDAwCiAgICAgIC0gUEdJRD0xMDAwCiAgICAgIC0gVFo9RXVyb3BlL0xvbmRvbgogICAgICAtIFNFUlZFUlVSTD1hdXRvCiAgICAgIC0gU0VSVkVSUE9SVD01MTgyMAogICAgICAtIFBFUVJTPTEwCiAgICBwb3J0czoKICAgICAgLSA1MTgyMDo1MTgyMC91ZHAKICAgIHZvbHVtZXM6CiAgICAgIC0gLi93aXJlZ3VhcmRfY29uZmlnOi9jb25maWcKICAgIHJlc3RhcnQ6IHVubGVzcy1zdG9wcGVkCiAgICBuZXR3b3JrczoKICAgICAgLSBteV9uZXR3b3JrCgogIG15c3FsOgogICAgaW1hZ2U6IG15c3FsOmxhdGVzdAogICAgY29udGFpbmVyX25hbWU6IG15c3FsCiAgICBlbnZpcm9ubWVudDoKICAgICAgLSBNU1FMX1JPT1RfUEFTU1dPUkQ9cm9vdAogICAgbmV0d29ya3M6CiAgICAgIC0gbXlfbmV0d29yawoKICBtYWlsOgogICAgaW1hZ2U6IG1haWxzZXJ2ZXIvZG9ja2VyLW1haWxzZXJ2ZXI6bGF0ZXN0CiAgICBob3N0bmFtZTogbWFpbAogICAgZG9tYWlubmFtZTogd2cKICAgIGNvbnRhaW5lcl9uYW1lOiBtYWlsCiAgICBlbnZpcm9ubWVudDoKICAgICAgLSBFTkFCTEVfU1BBTUFTU0FTU0lOPTAKICAgICAgLSBFTkFCTEVfQ0xBTUFWPjAKICAgICAgLSBFTkFCTEVfRkFJTDJCQU49MAogICAgICAtIEVOQUJM RV9QT1NUR1JFWT0wCiAgICAgIC0gT05FX0RJUj0xCiAgICAgIC0gRE1TX0RFQlVHPjAKICAgICAgLSBTU0xfVFlQRT1zZWxmLXNpZ25lZAogICAgICAtIFBPU1RNQVNURVJfQUREUkVTUz1oZWxsb0BtYWlsLndnCiAgICAgIC0gT1ZFUlJJREVfSE9TVE5BTUU9bWFpbC53ZwogICAgdm9sdW1lczogCiAgICAgIC0gLi9tYWlsZGF0YTo6L3Zhci9tYWlsCiAgICAgIC0gLi9tYWlsc3RhdGU6Oi92YXIvbWFpbC1zdGF0ZQogICAgICAtIC4vbWFpbGxvZ3M6Oi92YXIvbG9nL21haWwKICAgIHBvcnRzOgogICAgICAtICIyNToyNSIKICAgICAgLSAiMTQzOjE0MyIKICAgICAgLSAiNTg3OjU4NyIKICAgICAgLSAiOTkzOjk5MyIKICAgIG5ldHdvcmtzOgogICAgICAtIG15X25ldHdvcmsKCiBuZXR3b3JrczoKICBteV9uZXR3b3JrOgogICAgZHJpdmVyOiBicmlkZ2U=" | base64 -d > docker-compose.yml
 
-# Create directories
-sudo mkdir -p /etc/nginx/ssl
-sudo mkdir -p /var/www
+# Run Docker Compose
+docker-compose up -d
 
-# WireGuard Configuration
-wg genkey | sudo tee /etc/wireguard/privatekey | wg pubkey | sudo tee /etc/wireguard/publickey
-random_port=$(shuf -i 20000-65000 -n 1)
-echo "WireGuard Port: $random_port" >> /root/wg_port.txt
-echo "[Interface]
-PrivateKey = $(sudo cat /etc/wireguard/privatekey)
-Address = 10.0.0.1/24
-ListenPort = $random_port
-" | sudo tee /etc/wireguard/wg0.conf
-sudo systemctl enable wg-quick@wg0 && sudo systemctl start wg-quick@wg0
-
-# SSL Configuration
-sudo openssl ecparam -genkey -name secp384r1 | sudo tee /etc/nginx/ssl/nginx.key
-sudo openssl req -x509 -nodes -days 1825 -key /etc/nginx/ssl/nginx.key -out /etc/nginx/ssl/nginx.crt -subj "/CN=wgx"
-
-# Postfix Configuration
-echo "postfix postfix/mailname string mail.wg" | sudo debconf-set-selections
-echo "postfix postfix/main_mailer_type string 'Internet Site'" | sudo debconf-set-selections
-sudo apt-get install -y postfix
-
-# Dovecot Configuration
-sudo apt-get install -y dovecot-imapd dovecot-pop3d
-# (Add your Dovecot configuration here)
-
-# Roundcube Configuration
-sudo apt-get install -y roundcube roundcube-plugins
-# (Add your Roundcube configuration here)
-
-# NGINX, MySQL, and WordPress Configuration
+# Setup WordPress sites
 for i in {1..8}; do
   domain=$(shuf -zer -n6 {a..z}{A..Z}{0..9})
-  db_name=$(shuf -zer -n6 {a..z}{A..Z}{0..9})
-  db_user=$(shuf -zer -n6 {a..z}{A..Z}{0..9})
-  db_pass=$(openssl rand -base64 12 | tr -d /=+)
-  echo "127.0.0.1 $domain.wg" >> /etc/hosts
-  echo "$domain | $db_name | $db_user | $db_pass" >> /root/site_info.txt
-  sudo mysql -e "CREATE DATABASE $db_name; GRANT ALL PRIVILEGES ON $db_name.* TO '$db_user'@'localhost' IDENTIFIED BY '$db_pass'; FLUSH PRIVILEGES;"
-  wp core download --path=/var/www/$domain --allow-root
-  wp config create --path=/var/www/$domain --dbname=$db_name --dbuser=$db_user --dbpass=$db_pass --dbhost=localhost --allow-root
-  wp core install --path=/var/www/$domain --url="$domain.wg" --title="$domain Site" --admin_user="$db_user" --admin_password="$db_pass" --admin_email="admin@$domain.wg" --allow-root
+  docker run --name $domain --network my_network -e WORDPRESS_DB_HOST=mysql -e WORDPRESS_DB_USER=root -e WORDPRESS_DB_PASSWORD=root -d wordpress:latest
 done
 
-# Add mail.wg to hosts
-echo "127.0.0.1 mail.wg" >> /etc/hosts
+# Create email accounts
+docker exec -it mail setup email add hello@mail.wg mypassword
+docker exec -it mail setup email add no-reply@mail.wg mypassword
 
-# VPN Management Password
-vpn_pass=$(openssl rand -base64 32)
-echo "VPN Management Password: $vpn_pass" >> /root/vpn_password.txt
+# Install Wiki.js
+docker run -d --name wiki --network my_network -e DB_TYPE=mysql -e DB_HOST=mysql -e DB_PORT=3306 -e DB_USER=root -e DB_PASS=root -e DB_NAME=wiki -p 3000:3000 requarks/wiki:2
 
-# WireGuard Client Configuration
-for i in {1..10}; do
-  client_id="CLIENT-$(shuf -zer -n6 {A..Z}{a..z}{0..9})"
-  echo "Client ID: $client_id" >> /root/wg_clients.txt
-done
-
-# Local Email Server Configuration
-# (You can add your Postfix, Dovecot, and Roundcube configuration here)
-
-echo "Configuration complete. Your system is now ready for use."
+# Output
+echo "Configuration complete. Your Docker containers are now running."
