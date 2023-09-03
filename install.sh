@@ -1,53 +1,55 @@
 #!/bin/bash
 
-# Instalacja zależności
-sudo apt install -y nginx wireguard php-fpm mysql-server phpmyadmin
+# Install dependencies
+sudo apt update
+sudo apt install -y nginx wireguard php8.2-fpm mysql-server phpmyadmin wp-cli
 
-# Konfiguracja WireGuard
+# Create directories
+sudo mkdir -p /etc/nginx/ssl
+sudo mkdir -p /var/www
+
+# WireGuard Configuration
 wg genkey | sudo tee /etc/wireguard/privatekey | wg pubkey | sudo tee /etc/wireguard/publickey
+random_port=$(shuf -i 20000-65000 -n 1)
+echo "WireGuard Port: $random_port" >> /root/wg_port.txt
 echo "[Interface]
 PrivateKey = $(sudo cat /etc/wireguard/privatekey)
 Address = 10.0.0.1/24
-ListenPort = 51820
+ListenPort = $random_port
 " | sudo tee /etc/wireguard/wg0.conf
 sudo systemctl enable wg-quick@wg0 && sudo systemctl start wg-quick@wg0
 
-# Konfiguracja SSL dla MySQL i NGINX
+# SSL Configuration
 sudo openssl ecparam -genkey -name secp384r1 | sudo tee /etc/nginx/ssl/nginx.key
 sudo openssl req -x509 -nodes -days 1825 -key /etc/nginx/ssl/nginx.key -out /etc/nginx/ssl/nginx.crt -subj "/CN=wgx"
 
-# Konfiguracja NGINX i domen
-for domain in wgx wg wo; do
-  sudo wget https://wordpress.org/latest.tar.gz && tar xzf latest.tar.gz
-  echo "server {
-    listen 443 ssl;
-    server_name *.$domain;
-    ssl_certificate /etc/nginx/ssl/nginx.crt;
-    ssl_certificate_key /etc/nginx/ssl/nginx.key;
-    root /var/www/$domain;
-    index index.php;
-    location / {
-      try_files \$uri \$uri/ /index.php?\$args;
-    }
-    location ~ \.php$ {
-      include snippets/fastcgi-php.conf;
-      fastcgi_pass unix:/var/run/php/php7.4-fpm.sock;
-    }
-  }" | sudo tee /etc/nginx/sites-available/$domain
-  sudo ln -s /etc/nginx/sites-available/$domain /etc/nginx/sites-enabled/
+# NGINX, MySQL, and WordPress Configuration
+for i in {1..8}; do
+  domain=$(shuf -zer -n6 {a..z}{A..Z}{0..9})
+  db_name=$(shuf -zer -n6 {a..z}{A..Z}{0..9})
+  db_user=$(shuf -zer -n6 {a..z}{A..Z}{0..9})
+  db_pass=$(openssl rand -base64 12 | tr -d /=+)
+  echo "127.0.0.1 $domain.wg" >> /etc/hosts
+  echo "$domain | $db_name | $db_user | $db_pass" >> /root/site_info.txt
+  sudo mysql -e "CREATE DATABASE $db_name; GRANT ALL PRIVILEGES ON $db_name.* TO '$db_user'@'localhost' IDENTIFIED BY '$db_pass'; FLUSH PRIVILEGES;"
+  wp core download --path=/var/www/$domain --allow-root
+  wp config create --path=/var/www/$domain --dbname=$db_name --dbuser=$db_user --dbpass=$db_pass --dbhost=localhost --allow-root
+  wp core install --path=/var/www/$domain --url="$domain.wg" --title="$domain Site" --admin_user="$db_user" --admin_password="$db_pass" --admin_email="admin@$domain.wg" --allow-root
 done
 
-# Konfiguracja MySQL
-sudo mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH 'mysql_native_password' BY 'root'; FLUSH PRIVILEGES;"
-sudo mysql -e "CREATE DATABASE wordpress; GRANT ALL PRIVILEGES ON wordpress.* TO 'wordpress'@'localhost' IDENTIFIED BY 'password'; FLUSH PRIVILEGES;"
-
-# Reset DNS i przeładowanie karty sieciowej
+# DNS and Network Configuration
 echo "nameserver 1.1.1.1
 nameserver 1.0.0.1" | sudo tee /etc/resolv.conf
 sudo systemctl restart networking
 
-# Losowe hasło do zarządzania VPN
-password=$(openssl rand -base64 32)
-echo "Hasło do zarządzania VPN: $password"
+# VPN Management Password
+vpn_pass=$(openssl rand -base64 32)
+echo "VPN Management Password: $vpn_pass" >> /root/vpn_password.txt
 
-echo "Zakończono konfigurację. Twój system jest teraz gotowy do użycia."
+# WireGuard Client Configuration
+for i in {1..10}; do
+  client_id="CLIENT-$(shuf -zer -n6 {A..Z}{a..z}{0..9})"
+  echo "Client ID: $client_id" >> /root/wg_clients.txt
+done
+
+echo "Configuration complete. Your system is now ready for use."
